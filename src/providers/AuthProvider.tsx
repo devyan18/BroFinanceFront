@@ -140,7 +140,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       // Send the authorization code to the backend
       // The backend will exchange it for tokens with Google
-      console.log("Sending Google code to backend:", authorizationCode);
       const response = await apiClient.post<AuthResponse>(
         "/auth/google/callback",
         { code: authorizationCode },
