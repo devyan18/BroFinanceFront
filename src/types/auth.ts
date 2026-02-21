@@ -15,6 +15,10 @@ export interface User {
   avatarUrl?: string;
   provider: string[];
   balance: number;
+  cbu?: string;
+  showCbu?: boolean;
+  showEmail?: boolean;
+  needsPasswordSetup?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,7 +37,7 @@ export interface AuthResponse {
 
 // Credentials
 export interface LoginCredentials {
-  email: string;
+  identifier: string; // email or username
   password: string;
 }
 

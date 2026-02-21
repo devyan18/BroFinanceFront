@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: bro-finances-app
+    runtime: static
+    buildCommand: pnpm install && pnpm build
+    staticPublishPath: ./dist
+
+    envVars:
+      # Required — public URL of your backend on Render
+      # Example: https://bro-finances-api.onrender.com/api/v1
+      - key: VITE_API_URL
+        sync: false
+
+      # Optional — Google OAuth client ID (same value as GOOGLE_CLIENT_ID in the backend)
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+
+    # SPA routing: all paths fall back to index.html
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

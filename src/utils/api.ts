@@ -75,7 +75,10 @@ export const apiClient = {
       if (response.status === 401) {
         removeTokens();
       }
-      throw new Error(data.error || `HTTP ${response.status}`);
+      const errMsg = data.error || `HTTP ${response.status}`;
+      const err = new Error(errMsg) as Error & { errors?: Array<{ path: string; message: string }> };
+      if (data.errors?.length) err.errors = data.errors;
+      throw err;
     }
 
     return data;
@@ -100,6 +103,33 @@ export const apiClient = {
     );
   },
 
+  async postFormData<T>(
+    endpoint: string,
+    formData: FormData,
+    includeAuth = true,
+  ): Promise<ApiResponse<T>> {
+    const headers: Record<string, string> = {};
+    if (includeAuth) {
+      const accessToken = getAccessToken();
+      const refreshToken = getRefreshToken();
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+      if (refreshToken) headers["x-refresh-token"] = `Bearer ${refreshToken}`;
+    }
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: "POST",
+      body: formData,
+      headers,
+    });
+    const newAccessToken = response.headers.get("x-new-access-token");
+    if (newAccessToken) setTokens(newAccessToken, getRefreshToken() ?? "");
+    const data: ApiResponse<T> = await response.json();
+    if (!response.ok) {
+      if (response.status === 401) removeTokens();
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+    return data;
+  },
+
   async put<T>(
     endpoint: string,
     data?: unknown,
@@ -109,6 +139,21 @@ export const apiClient = {
       endpoint,
       {
         method: "PUT",
+        body: data ? JSON.stringify(data) : undefined,
+      },
+      includeAuth,
+    );
+  },
+
+  async patch<T>(
+    endpoint: string,
+    data?: unknown,
+    includeAuth = true,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(
+      endpoint,
+      {
+        method: "PATCH",
         body: data ? JSON.stringify(data) : undefined,
       },
       includeAuth,

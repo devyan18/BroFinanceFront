@@ -18,6 +18,7 @@ type AuthContextType = {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   loginWithGoogle: (authorizationCode: string) => Promise<void>;
+  setPassword: (username: string, password: string, confirmPassword: string) => Promise<void>;
   logout: () => Promise<void>;
   verifyAuth: () => Promise<boolean>;
 };
@@ -28,6 +29,7 @@ export const AuthContext = createContext<AuthContextType>({
   login: () => Promise.resolve(),
   register: () => Promise.resolve(),
   loginWithGoogle: () => Promise.resolve(),
+  setPassword: () => Promise.resolve(),
   logout: () => Promise.resolve(),
   verifyAuth: () => Promise.resolve(false),
 });
@@ -74,13 +76,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     verifyAuth();
   }, []);
 
-  const login = async ({ email, password }: LoginCredentials) => {
+  const login = async ({ identifier, password }: LoginCredentials) => {
     try {
-      // Call /auth/local/sign-in endpoint
       const response = await apiClient.post<AuthResponse>(
         "/auth/local/sign-in",
-        { email, password },
-        false, // Don't include auth headers for login
+        { identifier, password },
+        false,
       );
 
       if (response.success && response.data) {
@@ -166,6 +167,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const setPassword = async (username: string, password: string, confirmPassword: string) => {
+    const response = await apiClient.patch<{ user: User }>("/auth/set-password", {
+      username,
+      password,
+      confirmPassword,
+    });
+    if (!response.success || !response.data) {
+      throw new Error(response.error || "Error al configurar la contraseña");
+    }
+    const updatedUser = response.data.user;
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  };
+
   const logout = async () => {
     try {
       // Call /auth/sign-out endpoint
@@ -188,6 +203,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         login,
         register,
         loginWithGoogle,
+        setPassword,
         logout,
         verifyAuth,
       }}
