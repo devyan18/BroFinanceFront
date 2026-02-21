@@ -262,15 +262,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleRequestPayment = async (id: string) => {
-    try {
-      const res = await api.compras.requestPayment(id);
-      if (res.success) await fetchCompras();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al marcar como pagado");
-    }
-  };
-
   const handleConfirmPayment = async (id: string) => {
     try {
       const res = await api.compras.confirmPayment(id);
