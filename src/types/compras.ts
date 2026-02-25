@@ -44,6 +44,7 @@ export interface CreateCompraBatchInput {
 export interface UpdateCompraInput {
   descripcion?: string;
   montoTotal?: number;
+  montoDeudor?: number;
   tipo?: string;
 }
 

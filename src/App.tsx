@@ -1,6 +1,6 @@
 import { Router, Route, Switch, Redirect } from "wouter";
 import { AuthProvider } from "./providers/AuthProvider";
-import { SignInPage, SignUpPage, DashboardPage, ProfilePage, ChartsPage, UserProfilePage, FriendsPage, CompleteProfilePage } from "./pages";
+import { SignInPage, SignUpPage, DashboardPage, ProfilePage, ChartsPage, UserProfilePage, FriendsPage, CompleteProfilePage, ForgotPasswordPage, ResetPasswordPage } from "./pages";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
@@ -11,11 +11,20 @@ export default function App() {
           <Route path="/">
             <SignInPage />
           </Route>
+          <Route path="/login">
+            <SignInPage />
+          </Route>
           <Route path="/register">
             <SignUpPage />
           </Route>
           <Route path="/completar-registro">
             <CompleteProfilePage />
+          </Route>
+          <Route path="/forgot-password">
+            <ForgotPasswordPage />
+          </Route>
+          <Route path="/reset-password">
+            <ResetPasswordPage />
           </Route>
           <Route path="/inicio">
             <ProtectedRoute>

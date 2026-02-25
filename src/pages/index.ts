@@ -7,5 +7,7 @@ import ChartsPage from "./ChartsPage";
 import UserProfilePage from "./UserProfilePage";
 import FriendsPage from "./FriendsPage";
 import CompleteProfilePage from "./CompleteProfilePage";
+import ForgotPasswordPage from "./ForgotPasswordPage";
+import ResetPasswordPage from "./ResetPasswordPage";
 
-export { HomePage, SignInPage, SignUpPage, DashboardPage, ProfilePage, ChartsPage, UserProfilePage, FriendsPage, CompleteProfilePage };
+export { HomePage, SignInPage, SignUpPage, DashboardPage, ProfilePage, ChartsPage, UserProfilePage, FriendsPage, CompleteProfilePage, ForgotPasswordPage, ResetPasswordPage };

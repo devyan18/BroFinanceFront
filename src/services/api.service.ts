@@ -124,6 +124,30 @@ export const authApi = {
     formData.append("avatar", file);
     return apiClient.postFormData<{ user: User; avatarUrl: string }>("/auth/avatar", formData);
   },
+
+  /**
+   * Change password using current password
+   * POST /auth/change-password
+   */
+  changePassword: async (oldPassword: string, newPassword: string): Promise<ApiResponse<null>> => {
+    return apiClient.post<null>("/auth/change-password", { oldPassword, newPassword });
+  },
+
+  /**
+   * Request password reset email
+   * POST /auth/forgot-password
+   */
+  forgotPassword: async (email: string): Promise<ApiResponse<null>> => {
+    return apiClient.post<null>("/auth/forgot-password", { email }, false);
+  },
+
+  /**
+   * Reset password with token from email
+   * POST /auth/reset-password
+   */
+  resetPassword: async (userId: string, token: string, newPassword: string): Promise<ApiResponse<null>> => {
+    return apiClient.post<null>("/auth/reset-password", { userId, token, newPassword }, false);
+  },
 };
 
 /**

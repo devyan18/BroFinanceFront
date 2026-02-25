@@ -75,17 +75,21 @@ export default function ProfilePage() {
       setMessage({ type: "error", text: "Las contraseñas no coinciden" });
       return;
     }
-    if (newPassword.length < 5) {
-      setMessage({ type: "error", text: "La contraseña debe tener al menos 5 caracteres" });
+    if (newPassword.length < 6) {
+      setMessage({ type: "error", text: "La contraseña debe tener al menos 6 caracteres" });
       return;
     }
     try {
+      setSaving(true);
+      await api.auth.changePassword(currentPassword, newPassword);
       setMessage({ type: "success", text: "Contraseña actualizada correctamente" });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch {
-      setMessage({ type: "error", text: "Error al cambiar la contraseña" });
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Error al cambiar la contraseña" });
+    } finally {
+      setSaving(false);
     }
   };
 

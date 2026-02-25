@@ -1,7 +1,7 @@
 import { useAuth } from "../providers/AuthProvider";
 import { useLocation } from "wouter";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { IoWalletOutline, IoArrowUpOutline, IoArrowDownOutline, IoAdd, IoWarningOutline, IoPersonOutline, IoCheckmark, IoPeopleOutline, IoCheckmarkDoneOutline, IoTimeOutline } from "react-icons/io5";
+import { IoWalletOutline, IoArrowUpOutline, IoArrowDownOutline, IoAdd, IoWarningOutline, IoPersonOutline, IoCheckmark, IoPeopleOutline, IoCheckmarkDoneOutline, IoTimeOutline, IoPencilOutline } from "react-icons/io5";
 import api from "../services/api.service";
 import type { Compra, TipoCompra, Roommate } from "../types/compras";
 import { getSubfilters, isOtros } from "../constants/subfilters";
@@ -31,6 +31,11 @@ export default function DashboardPage() {
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
   const [payCompraIds, setPayCompraIds] = useState<string[]>([]);
+
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editCompra, setEditCompra] = useState<Compra | null>(null);
+  const [editForm, setEditForm] = useState({ descripcion: "", montoTotal: "", montoDeudor: "", tipo: "" });
+  const [editing, setEditing] = useState(false);
   const [payResult, setPayResult] = useState<{
     cbu: string;
     monto: number;
@@ -57,6 +62,7 @@ export default function DashboardPage() {
   const [filterTipo, setFilterTipo] = useState("");
   const [filterSubcategoria, setFilterSubcategoria] = useState("");
   const [filterUsuario, setFilterUsuario] = useState("");
+  const [sectorTab, setSectorTab] = useState<"todos" | "roomies" | "personal">("todos");
   const [sortBy, setSortBy] = useState<
     "createdAt" | "montoTotal" | "montoDeudor"
   >("createdAt");
@@ -91,9 +97,23 @@ export default function DashboardPage() {
   }, [filterTipo, filterUsuario, sortBy, sortOrder]);
 
   const comprasFiltradasPorSub = useMemo(() => {
-    if (!filterSubcategoria) return compras;
-    return compras.filter((c) => c.descripcion === filterSubcategoria);
-  }, [compras, filterSubcategoria]);
+    let result = compras;
+    if (filterSubcategoria) result = result.filter((c) => c.descripcion === filterSubcategoria);
+    if (sectorTab === "personal") {
+      result = result.filter((c) => {
+        const aid = typeof c.acreedorId === "object" ? c.acreedorId._id : c.acreedorId;
+        const did = typeof c.deudorId === "object" ? c.deudorId._id : c.deudorId;
+        return aid === did;
+      });
+    } else if (sectorTab === "roomies") {
+      result = result.filter((c) => {
+        const aid = typeof c.acreedorId === "object" ? c.acreedorId._id : c.acreedorId;
+        const did = typeof c.deudorId === "object" ? c.deudorId._id : c.deudorId;
+        return aid !== did;
+      });
+    }
+    return result;
+  }, [compras, filterSubcategoria, sectorTab]);
 
   const fetchFormData = useCallback(async () => {
     try {
@@ -208,7 +228,8 @@ export default function DashboardPage() {
   const splitEqually = () => {
     const ids = Object.keys(form.deudores);
     if (ids.length === 0 || !form.montoTotal) return;
-    const each = (parseFloat(form.montoTotal) / ids.length).toFixed(2);
+    // +1 para incluir la parte del acreedor (quien paga también consume)
+    const each = (parseFloat(form.montoTotal) / (ids.length + 1)).toFixed(2);
     setForm((f) => {
       const next: Record<string, string> = {};
       ids.forEach((id) => { next[id] = each; });
@@ -277,6 +298,41 @@ export default function DashboardPage() {
       if (res.success) await fetchCompras();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al rechazar pago");
+    }
+  };
+
+  const handleOpenEdit = (compra: Compra) => {
+    setEditCompra(compra);
+    setEditForm({
+      descripcion: compra.descripcion,
+      montoTotal: String(compra.montoTotal),
+      montoDeudor: String(compra.montoDeudor),
+      tipo: typeof compra.tipo === "object" ? compra.tipo._id : compra.tipo,
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleEditCompra = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editCompra) return;
+    setEditing(true);
+    setError(null);
+    try {
+      const res = await api.compras.update(editCompra._id, {
+        descripcion: editForm.descripcion,
+        montoTotal: parseFloat(editForm.montoTotal),
+        montoDeudor: parseFloat(editForm.montoDeudor),
+        tipo: editForm.tipo,
+      });
+      if (res.success) {
+        setEditModalOpen(false);
+        setEditCompra(null);
+        await fetchCompras();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al editar el gasto");
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -544,6 +600,24 @@ export default function DashboardPage() {
         )}
 
         <PageSection title="Últimos movimientos">
+          {/* Sector tabs */}
+          <div className="mb-4 flex gap-1 rounded-lg border border-[#2B3139]/50 bg-[#0B0E11]/30 p-1">
+            {(["todos", "roomies", "personal"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setSectorTab(tab)}
+                className={`flex-1 rounded-md py-1.5 text-xs font-semibold transition-all ${
+                  sectorTab === tab
+                    ? "bg-[#7F00FF] text-white shadow"
+                    : "text-[#848E9C] hover:text-white"
+                }`}
+              >
+                {tab === "todos" ? "Todos" : tab === "roomies" ? "Con roomies" : "Personales"}
+              </button>
+            ))}
+          </div>
+
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <select
@@ -704,7 +778,9 @@ export default function DashboardPage() {
                         <p className="text-xs text-[#848E9C]">
                           {isSolo
                             ? "Gasto personal"
-                            : `${acreedor?.username || "?"}${isIn ? " te cobró" : ` → ${other?.username || "?"}`}`}
+                            : isIn
+                              ? `Le cobraste a ${deudor?.username || "?"}`
+                              : `${acreedor?.username || "?"} te cobró`}
                         </p>
                       </div>
 
@@ -717,6 +793,17 @@ export default function DashboardPage() {
                         >
                           {formatMoney(isIn || isSolo ? c.montoAcreedor : c.montoDeudor)}
                         </span>
+                        {/* Acreedor: puede editar mientras no esté pagado ni en proceso de pago */}
+                        {isIn && c.estado !== "pagado" && c.estado !== "pago_pendiente" && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(c)}
+                            title="Editar gasto"
+                            className="shrink-0 rounded p-1 text-[#848E9C] hover:text-white transition-colors"
+                          >
+                            <IoPencilOutline className="size-3.5" />
+                          </button>
+                        )}
                         {/* Deudor: aceptado → abre modal con CBU para pagar */}
                         {!isSolo && !isIn && isAceptado(c) && (
                           <Button
@@ -941,13 +1028,15 @@ export default function DashboardPage() {
                       </div>
                     )}
 
-                    {selectedDeudorIds.length > 1 && form.montoTotal && (
+                    {selectedDeudorIds.length >= 1 && form.montoTotal && (
                       <button
                         type="button"
                         onClick={splitEqually}
                         className="mt-2 w-full rounded-md border border-[#7F00FF]/30 py-1.5 text-xs font-medium text-[#7F00FF] transition-colors hover:bg-[#7F00FF]/10"
                       >
-                        Dividir equitativamente ({selectedDeudorIds.length} personas)
+                        {selectedDeudorIds.length === 1
+                          ? "Dividir en 2 (50/50)"
+                          : `Dividir equitativamente (${selectedDeudorIds.length + 1} personas)`}
                       </button>
                     )}
 
@@ -993,6 +1082,93 @@ export default function DashboardPage() {
                 </Button>
               </div>
             </form>
+      </Modal>
+
+      {/* Edit expense modal */}
+      <Modal
+        isOpen={editModalOpen}
+        onClose={() => { setEditModalOpen(false); setEditCompra(null); }}
+        title="Editar gasto"
+        closeDisabled={editing}
+        maxWidth="lg"
+      >
+        <form onSubmit={handleEditCompra} className="p-5 space-y-4">
+          {editCompra && !isSoloCompra(editCompra) && (
+            <div className="rounded-lg border border-[#7F00FF]/30 bg-[#7F00FF]/5 px-3 py-2 text-xs text-[#7F00FF]">
+              Al editar un gasto aceptado, el deudor deberá volver a aceptarlo.
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="edit-tipo" className="mb-1.5 block text-xs font-semibold text-[#EAECEF]">Tipo</label>
+            <select
+              id="edit-tipo"
+              required
+              value={editForm.tipo}
+              onChange={(e) => setEditForm((f) => ({ ...f, tipo: e.target.value }))}
+              className="w-full rounded-lg border border-[#2B3139]/60 bg-[#0B0E11]/50 px-3 py-2.5 text-sm text-white transition-colors focus:border-[#7F00FF] focus:outline-none focus:ring-2 focus:ring-[#7F00FF]/20"
+            >
+              <option value="">Seleccionar tipo</option>
+              {tipos.map((t) => (
+                <option key={t._id} value={t._id}>{t.descripcion}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="edit-descripcion" className="mb-1.5 block text-xs font-semibold text-[#EAECEF]">Descripción</label>
+            <input
+              id="edit-descripcion"
+              type="text"
+              required
+              value={editForm.descripcion}
+              onChange={(e) => setEditForm((f) => ({ ...f, descripcion: e.target.value }))}
+              className="w-full rounded-lg border border-[#2B3139]/60 bg-[#0B0E11]/50 px-3 py-2.5 text-sm text-white placeholder-[#848E9C] transition-colors focus:border-[#7F00FF] focus:outline-none focus:ring-2 focus:ring-[#7F00FF]/20"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="edit-montoTotal" className="mb-1.5 block text-xs font-semibold text-[#EAECEF]">Monto total ($)</label>
+            <input
+              id="edit-montoTotal"
+              type="number"
+              required
+              min="0.01"
+              step="0.01"
+              value={editForm.montoTotal}
+              onChange={(e) => setEditForm((f) => ({ ...f, montoTotal: e.target.value }))}
+              className="font-mono w-full rounded-lg border border-[#2B3139]/60 bg-[#0B0E11]/50 px-3 py-2.5 text-sm text-white placeholder-[#848E9C] transition-colors focus:border-[#7F00FF] focus:outline-none focus:ring-2 focus:ring-[#7F00FF]/20"
+            />
+          </div>
+
+          {editCompra && !isSoloCompra(editCompra) && (
+            <div>
+              <label htmlFor="edit-montoDeudor" className="mb-1.5 block text-xs font-semibold text-[#EAECEF]">
+                Monto que debe el deudor ($)
+              </label>
+              <input
+                id="edit-montoDeudor"
+                type="number"
+                required
+                min="0.01"
+                step="0.01"
+                max={editForm.montoTotal}
+                value={editForm.montoDeudor}
+                onChange={(e) => setEditForm((f) => ({ ...f, montoDeudor: e.target.value }))}
+                className="font-mono w-full rounded-lg border border-[#2B3139]/60 bg-[#0B0E11]/50 px-3 py-2.5 text-sm text-white placeholder-[#848E9C] transition-colors focus:border-[#7F00FF] focus:outline-none focus:ring-2 focus:ring-[#7F00FF]/20"
+              />
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-3">
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setEditModalOpen(false)} disabled={editing}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary" className="flex-1" disabled={editing} isLoading={editing}>
+              {editing ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </div>
+        </form>
       </Modal>
 
       <Modal isOpen={payModalOpen} onClose={closePayModal} title="Transferir">

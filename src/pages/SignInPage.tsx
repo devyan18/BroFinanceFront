@@ -169,7 +169,16 @@ export default function SignInPage() {
               disabled={isLoading}
             />
 
-            <p className="mt-6 text-center text-sm text-[#848E9C]">
+            <p className="mt-4 text-center text-xs text-[#848E9C]">
+              <a
+                href="/forgot-password"
+                className="font-semibold text-[#7F00FF] hover:text-[#9D00FF] transition-colors"
+              >
+                ¿Olvidaste tu contraseña?
+              </a>
+            </p>
+
+            <p className="mt-3 text-center text-sm text-[#848E9C]">
               ¿No tienes cuenta?{" "}
               <a
                 href="/register"
