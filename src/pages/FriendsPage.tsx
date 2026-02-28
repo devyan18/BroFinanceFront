@@ -1,5 +1,5 @@
 import { useAuth } from "../providers/AuthProvider";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { IoPersonAddOutline, IoSearchOutline, IoCheckmarkOutline, IoCloseOutline } from "react-icons/io5";
 import api from "../services/api.service";
@@ -272,15 +272,27 @@ export default function FriendsPage() {
                 {received.map((r: FriendRequest) => (
                   <Card key={r.id} hover={false} padding="sm" className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <a href={r.user?._id ? `/user/${r.user._id}` : "#"} className="flex items-center gap-3 min-w-0">
-                        <Avatar
-                          name={r.user?.username ?? "?"}
-                          src={getAvatarUrl(r.user?.avatarUrl)}
-                          size="sm"
-                          variant="default"
-                        />
-                        <p className="font-medium text-sm text-white truncate">{r.user?.username ?? "Usuario"}</p>
-                      </a>
+                      {r.user?._id ? (
+                        <Link href={`/user/${r.user._id}`} className="flex items-center gap-3 min-w-0">
+                          <Avatar
+                            name={r.user?.username ?? "?"}
+                            src={getAvatarUrl(r.user?.avatarUrl)}
+                            size="sm"
+                            variant="default"
+                          />
+                          <p className="font-medium text-sm text-white truncate">{r.user?.username ?? "Usuario"}</p>
+                        </Link>
+                      ) : (
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar
+                            name={r.user?.username ?? "?"}
+                            src={getAvatarUrl(r.user?.avatarUrl)}
+                            size="sm"
+                            variant="default"
+                          />
+                          <p className="font-medium text-sm text-white truncate">{r.user?.username ?? "Usuario"}</p>
+                        </div>
+                      )}
                       <span className="text-xs text-[#848E9C] shrink-0">te envió solicitud</span>
                     </div>
                     <div className="flex gap-2">
@@ -337,7 +349,7 @@ export default function FriendsPage() {
             <div className="space-y-2">
               {friends.map((f) => (
                 <Card key={f.id} hover={false} padding="sm" className="flex items-center justify-between gap-4">
-                  <a
+                  <Link
                     href={`/user/${f.id}`}
                     className="flex items-center gap-3 min-w-0 flex-1"
                   >
@@ -346,7 +358,7 @@ export default function FriendsPage() {
                       <p className="font-medium text-sm text-white truncate">{f.username}</p>
                       {f.email && <p className="text-xs text-[#848E9C] truncate">{f.email}</p>}
                     </div>
-                  </a>
+                  </Link>
                   <Button
                     variant="secondary"
                     size="sm"

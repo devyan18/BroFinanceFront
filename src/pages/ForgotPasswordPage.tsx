@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { IoWarningOutline, IoCheckmarkCircleOutline, IoArrowBackOutline } from "react-icons/io5";
 import api from "../services/api.service";
 
@@ -41,12 +41,12 @@ export default function ForgotPasswordPage() {
       <main className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-[400px]">
           <div className="mb-6 text-center">
-            <a href="/" className="inline-flex items-center gap-2 text-base font-semibold tracking-tight text-white hover:opacity-80 transition-opacity">
+            <Link href="/" className="inline-flex items-center gap-2 text-base font-semibold tracking-tight text-white hover:opacity-80 transition-opacity">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#7F00FF] to-[#9D00FF]">
                 <span className="text-xs font-bold">BF</span>
               </div>
               Bro Finances
-            </a>
+            </Link>
           </div>
 
           <div className="rounded-xl border border-[#2B3139]/50 bg-[#181A20]/80 backdrop-blur-sm p-6 shadow-2xl">

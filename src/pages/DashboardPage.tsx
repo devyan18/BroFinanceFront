@@ -1,5 +1,5 @@
 import { useAuth } from "../providers/AuthProvider";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { IoWalletOutline, IoArrowUpOutline, IoArrowDownOutline, IoAdd, IoWarningOutline, IoPersonOutline, IoCheckmark, IoPeopleOutline, IoCheckmarkDoneOutline, IoTimeOutline, IoPencilOutline } from "react-icons/io5";
 import api from "../services/api.service";
@@ -23,7 +23,7 @@ import {
 } from "../components/ui";
 
 export default function DashboardPage() {
-  const { user, logout, verifyAuth } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const [, setLocation] = useLocation();
   const [compras, setCompras] = useState<Compra[]>([]);
   const [loading, setLoading] = useState(true);
@@ -268,7 +268,7 @@ export default function DashboardPage() {
   const handleAccept = async (id: string) => {
     try {
       const res = await api.compras.accept(id);
-      if (res.success) await Promise.all([fetchCompras(), verifyAuth()]);
+      if (res.success) await Promise.all([fetchCompras(), refreshUser()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al aceptar");
     }
@@ -286,7 +286,7 @@ export default function DashboardPage() {
   const handleConfirmPayment = async (id: string) => {
     try {
       const res = await api.compras.confirmPayment(id);
-      if (res.success) await Promise.all([fetchCompras(), verifyAuth()]);
+      if (res.success) await Promise.all([fetchCompras(), refreshUser()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al confirmar pago");
     }
@@ -974,7 +974,7 @@ export default function DashboardPage() {
                     {roommates.length === 0 ? (
                       <p className="py-2 text-center text-xs text-[#848E9C]">
                         No tienes amigos. Ve a{" "}
-                        <a href="/amigos" className="text-[#7F00FF] hover:underline">Amigos</a>{" "}
+                        <Link href="/amigos" className="text-[#7F00FF] hover:underline">Amigos</Link>{" "}
                         para agregar roomies.
                       </p>
                     ) : (

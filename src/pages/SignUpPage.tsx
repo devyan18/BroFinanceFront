@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../providers/AuthProvider";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { IoWarningOutline, IoRefreshOutline } from "react-icons/io5";
 import GoogleLoginButton from "../components/GoogleLoginButton";
 
@@ -79,7 +79,7 @@ export default function SignUpPage() {
       <main className="flex min-h-screen items-center justify-center p-4" aria-label="Crear cuenta">
         <div className="w-full max-w-[400px]">
           <div className="mb-6 text-center">
-            <a
+            <Link
               href="/"
               className="inline-flex items-center gap-2 text-base font-semibold tracking-tight text-white transition-opacity hover:opacity-80"
             >
@@ -87,7 +87,7 @@ export default function SignUpPage() {
                 <span className="text-xs font-bold">BF</span>
               </div>
               Bro Finances
-            </a>
+            </Link>
           </div>
 
           <div className="rounded-xl border border-[#2B3139]/50 bg-[#181A20]/80 backdrop-blur-sm p-6 shadow-2xl">
@@ -214,12 +214,12 @@ export default function SignUpPage() {
 
             <p className="mt-6 text-center text-sm text-[#848E9C]">
               ¿Ya tienes cuenta?{" "}
-              <a
+              <Link
                 href="/"
                 className="font-semibold text-[#7F00FF] hover:text-[#9D00FF] transition-colors"
               >
                 Iniciar sesión
-              </a>
+              </Link>
             </p>
           </div>
         </div>

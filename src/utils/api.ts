@@ -5,6 +5,7 @@ const API_BASE_URL =
 
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
+const USER_KEY = "user";
 
 // Token management
 export const getAccessToken = (): string | null => {
@@ -23,7 +24,23 @@ export const setTokens = (accessToken: string, refreshToken: string): void => {
 export const removeTokens = (): void => {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem("user");
+  localStorage.removeItem(USER_KEY);
+};
+
+export const getStoredUser = (): unknown => {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+export const setStoredUser = (user: unknown): void => {
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(USER_KEY);
+  }
 };
 
 // API Client

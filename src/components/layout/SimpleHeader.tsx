@@ -1,3 +1,5 @@
+import { Link } from "wouter";
+
 interface SimpleHeaderProps {
   onLogout?: () => void;
   logoutLabel?: string;
@@ -6,7 +8,7 @@ interface SimpleHeaderProps {
 
 function Logo() {
   return (
-    <a
+    <Link
       href="/inicio"
       className="flex items-center gap-2 text-base font-semibold tracking-tight text-white transition-opacity hover:opacity-80"
     >
@@ -14,7 +16,7 @@ function Logo() {
         <span className="text-xs font-bold">BF</span>
       </div>
       Bro Finances
-    </a>
+    </Link>
   );
 }
 

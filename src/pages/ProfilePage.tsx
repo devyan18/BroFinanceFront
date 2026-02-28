@@ -8,7 +8,7 @@ import SimpleHeader from "../components/layout/SimpleHeader";
 import { Alert, Avatar, Button } from "../components/ui";
 
 export default function ProfilePage() {
-  const { user, logout, verifyAuth } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const [, setLocation] = useLocation();
   const [isEditing, setIsEditing] = useState(false);
 
@@ -50,7 +50,7 @@ export default function ProfilePage() {
         showEmail,
       });
       if (res.success && res.data?.user) {
-        await verifyAuth();
+        updateUser(res.data.user);
         setMessage({ type: "success", text: "Perfil actualizado correctamente" });
         setIsEditing(false);
       } else {
@@ -114,8 +114,8 @@ export default function ProfilePage() {
       setUploading(true);
       const res = await api.auth.uploadAvatar(file);
       if (res.success && res.data?.user) {
-        await verifyAuth();
-        setAvatarUrl(res.data.avatarUrl);
+        updateUser(res.data.user);
+        setAvatarUrl(res.data.user.avatarUrl ?? "");
         setMessage({ type: "success", text: "Foto actualizada correctamente" });
       } else {
         setMessage({ type: "error", text: res.error || "Error al subir la imagen" });

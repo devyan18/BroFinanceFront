@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import {
   IoChevronDown,
   IoPersonOutline,
@@ -26,7 +27,7 @@ interface NavbarProps {
 
 function Logo() {
   return (
-    <a
+    <Link
       href="/inicio"
       className="flex items-center gap-2 text-base font-semibold tracking-tight text-white transition-opacity hover:opacity-80"
     >
@@ -34,7 +35,7 @@ function Logo() {
         <span className="text-xs font-bold">BF</span>
       </div>
       Bro Finances
-    </a>
+    </Link>
   );
 }
 
@@ -65,7 +66,7 @@ export default function Navbar({
               {navItems.map((item) => {
                 const active = currentPath === item.href || (item.href !== "/inicio" && currentPath.startsWith(item.href));
                 return (
-                  <a
+                  <Link
                     key={item.href}
                     href={item.href}
                     className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
@@ -75,7 +76,7 @@ export default function Navbar({
                     }`}
                   >
                     {item.label}
-                  </a>
+                  </Link>
                 );
               })}
             </nav>
@@ -136,20 +137,20 @@ export default function Navbar({
                     </p>
                   </div>
                   <nav className="p-1">
-                    <a
+                    <Link
                       href="/profile"
                       className="flex items-center gap-2 rounded px-2.5 py-2 text-xs font-medium transition-colors hover:bg-[#2B3139]/50"
                     >
                       <IoPersonOutline className="size-3.5 text-[#848E9C]" />
                       Mi perfil
-                    </a>
-                    <a
+                    </Link>
+                    <Link
                       href="/charts"
                       className="flex items-center gap-2 rounded px-2.5 py-2 text-xs font-medium transition-colors hover:bg-[#2B3139]/50"
                     >
                       <IoBarChartOutline className="size-3.5 text-[#848E9C]" />
                       Gráficas
-                    </a>
+                    </Link>
                     <button
                       type="button"
                       onClick={() => {

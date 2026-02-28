@@ -1,8 +1,10 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import {
   apiClient,
   getAccessToken,
+  getStoredUser,
   setTokens,
+  setStoredUser,
   removeTokens,
 } from "../utils/api";
 import type {
@@ -20,7 +22,8 @@ type AuthContextType = {
   loginWithGoogle: (authorizationCode: string) => Promise<void>;
   setPassword: (username: string, password: string, confirmPassword: string) => Promise<void>;
   logout: () => Promise<void>;
-  verifyAuth: () => Promise<boolean>;
+  updateUser: (user: User | null) => void;
+  refreshUser: () => Promise<boolean>;
 };
 
 export const AuthContext = createContext<AuthContextType>({
@@ -31,49 +34,65 @@ export const AuthContext = createContext<AuthContextType>({
   loginWithGoogle: () => Promise.resolve(),
   setPassword: () => Promise.resolve(),
   logout: () => Promise.resolve(),
-  verifyAuth: () => Promise.resolve(false),
+  updateUser: () => {},
+  refreshUser: () => Promise.resolve(false),
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const hasVerifiedRef = useRef(false);
 
-  // Verify authentication by calling the API with the stored token
-  const verifyAuth = async (): Promise<boolean> => {
+  const updateUser = (newUser: User | null) => {
+    setUser(newUser);
+    setStoredUser(newUser);
+  };
+
+  const refreshUser = async (): Promise<boolean> => {
     const accessToken = getAccessToken();
-
     if (!accessToken) {
+      removeTokens();
       setUser(null);
-      setIsLoading(false);
       return false;
     }
-
     try {
-      // Call /auth/me endpoint to verify token and get user data
       const response = await apiClient.get<{ user: User }>("/auth/me");
-
       if (response.success && response.data) {
-        setUser(response.data.user);
-        setIsLoading(false);
+        updateUser(response.data.user);
         return true;
       } else {
         removeTokens();
         setUser(null);
-        setIsLoading(false);
         return false;
       }
-    } catch (error) {
-      console.error("Auth verification failed:", error);
+    } catch {
       removeTokens();
       setUser(null);
-      setIsLoading(false);
       return false;
     }
   };
 
-  // Check for existing token on mount
   useEffect(() => {
-    verifyAuth();
+    if (hasVerifiedRef.current) return;
+    hasVerifiedRef.current = true;
+
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const stored = getStoredUser() as User | null;
+    if (stored && typeof stored === "object" && stored._id) {
+      setUser(stored);
+      setIsLoading(false);
+    }
+
+    refreshUser().then((ok) => {
+      if (!ok && stored) setUser(null);
+      setIsLoading(false);
+    });
   }, []);
 
   const login = async ({ identifier, password }: LoginCredentials) => {
@@ -89,12 +108,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Store tokens in localStorage
         setTokens(tokens.accessToken, tokens.refreshToken);
-
-        // Store user data
-        localStorage.setItem("user", JSON.stringify(user));
-
-        // Set user state
-        setUser(user);
+        updateUser(user);
       } else {
         throw new Error(response.error || "Login failed");
       }
@@ -122,12 +136,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Store tokens in localStorage
         setTokens(tokens.accessToken, tokens.refreshToken);
-
-        // Store user data
-        localStorage.setItem("user", JSON.stringify(user));
-
-        // Set user state
-        setUser(user);
+        updateUser(user);
       } else {
         throw new Error(response.error || "Registration failed");
       }
@@ -152,12 +161,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Store tokens in localStorage
         setTokens(tokens.accessToken, tokens.refreshToken);
-
-        // Store user data
-        localStorage.setItem("user", JSON.stringify(user));
-
-        // Set user state
-        setUser(user);
+        updateUser(user);
       } else {
         throw new Error(response.error || "Google login failed");
       }
@@ -176,9 +180,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!response.success || !response.data) {
       throw new Error(response.error || "Error al configurar la contraseña");
     }
-    const updatedUser = response.data.user;
-    localStorage.setItem("user", JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    updateUser(response.data.user);
   };
 
   const logout = async () => {
@@ -189,9 +191,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error("Logout error:", error);
       // Continue with local logout even if API call fails
     } finally {
-      // Always clear local storage and state
       removeTokens();
-      setUser(null);
+      updateUser(null);
     }
   };
 
@@ -205,7 +206,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loginWithGoogle,
         setPassword,
         logout,
-        verifyAuth,
+        updateUser,
+        refreshUser,
       }}
     >
       {children}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../providers/AuthProvider";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { IoWarningOutline, IoRefreshOutline } from "react-icons/io5";
 import GoogleLoginButton from "../components/GoogleLoginButton";
 
@@ -71,7 +71,7 @@ export default function SignInPage() {
       <main className="flex min-h-screen items-center justify-center p-4" aria-label="Iniciar sesión">
         <div className="w-full max-w-[400px]">
           <div className="mb-6 text-center">
-            <a
+            <Link
               href="/"
               className="inline-flex items-center gap-2 text-base font-semibold tracking-tight text-white transition-opacity hover:opacity-80"
             >
@@ -79,7 +79,7 @@ export default function SignInPage() {
                 <span className="text-xs font-bold">BF</span>
               </div>
               Bro Finances
-            </a>
+            </Link>
           </div>
 
           <div className="rounded-xl border border-[#2B3139]/50 bg-[#181A20]/80 backdrop-blur-sm p-6 shadow-2xl">
@@ -170,22 +170,22 @@ export default function SignInPage() {
             />
 
             <p className="mt-4 text-center text-xs text-[#848E9C]">
-              <a
+              <Link
                 href="/forgot-password"
                 className="font-semibold text-[#7F00FF] hover:text-[#9D00FF] transition-colors"
               >
                 ¿Olvidaste tu contraseña?
-              </a>
+              </Link>
             </p>
 
             <p className="mt-3 text-center text-sm text-[#848E9C]">
               ¿No tienes cuenta?{" "}
-              <a
+              <Link
                 href="/register"
                 className="font-semibold text-[#7F00FF] hover:text-[#9D00FF] transition-colors"
               >
                 Registrarse
-              </a>
+              </Link>
             </p>
           </div>
         </div>
