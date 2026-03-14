@@ -1,12 +1,13 @@
 import { useAuth } from "../providers/AuthProvider";
 import { useLocation, Link } from "wouter";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { IoWalletOutline, IoArrowUpOutline, IoArrowDownOutline, IoAdd, IoWarningOutline, IoPersonOutline, IoCheckmark, IoPeopleOutline, IoCheckmarkDoneOutline, IoTimeOutline, IoPencilOutline } from "react-icons/io5";
+import { IoWalletOutline, IoArrowUpOutline, IoArrowDownOutline, IoAdd, IoWarningOutline, IoPersonOutline, IoCheckmark, IoPeopleOutline, IoCheckmarkDoneOutline, IoTimeOutline, IoPencilOutline, IoChevronDownOutline, IoChevronForwardOutline } from "react-icons/io5";
 import api from "../services/api.service";
 import type { Compra, TipoCompra, Roommate } from "../types/compras";
 import { getSubfilters, isOtros } from "../constants/subfilters";
 import { formatMoney, formatDate } from "../utils/formatters";
 import { getAvatarUrl } from "../utils/avatar";
+import { getBalancesCache, setBalancesCache } from "../utils/balanceCache";
 import { AppLayout } from "../components/layout";
 import Navbar from "../components/layout/Navbar";
 import {
@@ -49,6 +50,7 @@ export default function DashboardPage() {
   const [roommates, setRoommates] = useState<Roommate[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
 
   // deudores: map of { [userId]: montoDeudor string }, empty = personal expense
   const [form, setForm] = useState({
@@ -116,18 +118,25 @@ export default function DashboardPage() {
   }, [compras, filterSubcategoria, sectorTab]);
 
   const fetchFormData = useCallback(async () => {
+    if (!user?._id) return;
     try {
       const [tiposRes, usuariosRes] = await Promise.all([
         api.compras.getTipos(),
         api.compras.getUsuarios(),
       ]);
       if (tiposRes.success && tiposRes.data) setTipos(tiposRes.data);
-      if (usuariosRes.success && usuariosRes.data)
-        setRoommates(usuariosRes.data);
+      if (usuariosRes.success && usuariosRes.data) {
+        const cache = getBalancesCache(user._id);
+        const list = usuariosRes.data.map((u) => ({
+          ...u,
+          balance: cache[u.id]?.balance ?? u.balance,
+        }));
+        setRoommates(list);
+      }
     } catch {
       // Silently fail for form data
     }
-  }, []);
+  }, [user?._id]);
 
   useEffect(() => {
     fetchCompras();
@@ -140,6 +149,25 @@ export default function DashboardPage() {
   useEffect(() => {
     if (modalOpen) fetchFormData();
   }, [modalOpen, fetchFormData]);
+
+  // Background refresh of real balances (server uses pivot to avoid full history scan)
+  useEffect(() => {
+    if (!user?._id) return;
+    const t = setTimeout(() => {
+      api.compras.getBalances().then((res) => {
+        if (res.success && res.data?.length) {
+          setBalancesCache(user._id, res.data);
+          setRoommates((prev) =>
+            prev.map((r) => {
+              const b = res.data!.find((x) => x.roommateId === r.id);
+              return b ? { ...r, balance: b.balance } : r;
+            }),
+          );
+        }
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [user?._id]);
 
   useEffect(() => {
     setFilterSubcategoria("");
@@ -451,6 +479,48 @@ export default function DashboardPage() {
       : (bVal as number) - (aVal as number);
   });
 
+  const tableRows = useMemo(() => {
+    const batchKeyFor = (c: Compra) => {
+      const aid = getAcreedorId(c);
+      const created = (c.createdAt || "").slice(0, 19);
+      return `${aid}_${c.descripcion}_${created}`;
+    };
+    const keyToCompras = new Map<string, Compra[]>();
+    sortedCompras.forEach((c) => {
+      const key = batchKeyFor(c);
+      if (!keyToCompras.has(key)) keyToCompras.set(key, []);
+      keyToCompras.get(key)!.push(c);
+    });
+    const batches = new Map<string, Compra[]>();
+    keyToCompras.forEach((arr, k) => {
+      if (arr.length > 1) batches.set(k, arr);
+    });
+    const rows: { type: "single"; compra: Compra } | { type: "batch"; batchKey: string; compras: Compra[] }[] = [];
+    const seenBatch = new Set<string>();
+    sortedCompras.forEach((c) => {
+      const key = batchKeyFor(c);
+      const batch = batches.get(key);
+      if (batch) {
+        if (!seenBatch.has(key)) {
+          seenBatch.add(key);
+          rows.push({ type: "batch", batchKey: key, compras: batch });
+        }
+      } else {
+        rows.push({ type: "single", compra: c });
+      }
+    });
+    return rows;
+  }, [sortedCompras]);
+
+  const toggleBatch = (key: string) => {
+    setExpandedBatches((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   return (
     <AppLayout>
       <Navbar
@@ -706,120 +776,202 @@ export default function DashboardPage() {
 
               {/* Table body */}
               <ul>
-                {sortedCompras.slice(0, 10).map((c, i) => {
-                  const isSolo = isSoloCompra(c);
-                  const isIn = isAcreedor(c);
-                  const tipoDesc =
-                    typeof c.tipo === "object" ? c.tipo.descripcion : "";
-                  const acreedor =
-                    typeof c.acreedorId === "object" ? c.acreedorId : null;
-                  const deudor =
-                    typeof c.deudorId === "object" ? c.deudorId : null;
-                  const other = isIn ? deudor : acreedor;
+                {tableRows.slice(0, 15).map((row, i) => {
+                  if (row.type === "single") {
+                    const c = row.compra;
+                    const isSolo = isSoloCompra(c);
+                    const isIn = isAcreedor(c);
+                    const tipoDesc =
+                      typeof c.tipo === "object" ? c.tipo.descripcion : "";
+                    const acreedor =
+                      typeof c.acreedorId === "object" ? c.acreedorId : null;
+                    const deudor =
+                      typeof c.deudorId === "object" ? c.deudorId : null;
+                    const other = isIn ? deudor : acreedor;
+
+                    return (
+                      <li
+                        key={c._id}
+                        className="grid grid-cols-12 gap-4 items-center border-b border-[#2B3139]/40 px-4 py-3 last:border-b-0 transition-colors hover:bg-[#2B3139]/20"
+                        style={{
+                          animation: "fadeInUp 0.3s ease-out both",
+                          animationDelay: `${i * 50}ms`,
+                        }}
+                      >
+                        <div className="col-span-5 flex min-w-0 items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isSolo && other?._id && other._id !== user?._id) setLocation(`/user/${other._id}`);
+                            }}
+                            className={`shrink-0 ${!isSolo && other?._id && other._id !== user?._id ? "cursor-pointer hover:opacity-80 transition-opacity" : "cursor-default"}`}
+                          >
+                            <Avatar
+                              name={isSolo ? "Tu" : (other?.username ?? "?")}
+                              src={isSolo ? undefined : getAvatarUrl(other?.avatarUrl)}
+                              size="md"
+                              variant={isSolo ? "default" : isIn ? "positive" : "negative"}
+                              ring={!isSolo}
+                            />
+                          </button>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium truncate text-xs">{c.descripcion}</p>
+                              {c.estado === "pendiente" && <Badge variant="pending">Pendiente</Badge>}
+                              {c.estado === "pago_pendiente" && (
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-[#0ECB81]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#0ECB81] border border-[#0ECB81]/20">
+                                  <IoTimeOutline className="size-2.5" /> Pago enviado
+                                </span>
+                              )}
+                              {c.estado === "pagado" && (
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-[#0ECB81]/15 px-1.5 py-0.5 text-[10px] font-medium text-[#0ECB81] border border-[#0ECB81]/30">
+                                  <IoCheckmarkDoneOutline className="size-2.5" /> Pagado
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[#848E9C] mt-0.5">{formatDate(c.createdAt)}</p>
+                          </div>
+                        </div>
+                        <div className="col-span-2 hidden sm:block">
+                          {tipoDesc && <Badge variant="default">{tipoDesc}</Badge>}
+                        </div>
+                        <div className="col-span-3 hidden md:block">
+                          <p className="text-xs text-[#848E9C]">
+                            {isSolo ? "Gasto personal" : isIn ? `Le cobraste a ${deudor?.username || "?"}` : `${acreedor?.username || "?"} te cobró`}
+                          </p>
+                        </div>
+                        <div className="col-span-2 flex items-center justify-end gap-2">
+                          <span
+                            className={`font-mono text-sm font-semibold tabular-nums ${
+                              isSolo ? "text-[#848E9C]" : c.estado === "pagado" ? "text-[#848E9C] line-through" : isIn ? "text-[#0ECB81]" : "text-[#F6465D]"
+                            }`}
+                          >
+                            {formatMoney(isIn || isSolo ? c.montoAcreedor : c.montoDeudor)}
+                          </span>
+                          {isIn && c.estado !== "pagado" && c.estado !== "pago_pendiente" && (
+                            <button type="button" onClick={() => handleOpenEdit(c)} title="Editar gasto" className="shrink-0 rounded p-1 text-[#848E9C] hover:text-white transition-colors">
+                              <IoPencilOutline className="size-3.5" />
+                            </button>
+                          )}
+                          {!isSolo && !isIn && isAceptado(c) && (
+                            <Button variant="pay" size="sm" onClick={() => handlePay(getAcreedorId(c), [c._id])} className="shrink-0">
+                              Pagar
+                            </Button>
+                          )}
+                          {!isSolo && !isIn && c.estado === "pago_pendiente" && (
+                            <span className="shrink-0 text-[10px] text-[#848E9C]">En espera</span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  }
+
+                  const { batchKey: bk, compras: batchCompras } = row;
+                  const expanded = expandedBatches.has(bk);
+                  const first = batchCompras[0];
+                  const tipoDesc = typeof first.tipo === "object" ? first.tipo.descripcion : "";
+                  const totalBatch = batchCompras.reduce((s, c) => s + (isAcreedor(c) ? c.montoAcreedor : c.montoDeudor), 0);
 
                   return (
                     <li
-                      key={c._id}
-                      className="grid grid-cols-12 gap-4 items-center border-b border-[#2B3139]/40 px-4 py-3 last:border-b-0 transition-colors hover:bg-[#2B3139]/20"
-                      style={{
-                        animation: "fadeInUp 0.3s ease-out both",
-                        animationDelay: `${i * 50}ms`,
-                      }}
+                      key={bk}
+                      className="border-b border-[#2B3139]/40 last:border-b-0 transition-colors"
+                      style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: `${i * 50}ms` }}
                     >
-                      {/* Description column */}
-                      <div className="col-span-5 flex min-w-0 items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!isSolo && other?._id && other._id !== user?._id) setLocation(`/user/${other._id}`);
-                          }}
-                          className={`shrink-0 ${!isSolo && other?._id && other._id !== user?._id ? "cursor-pointer hover:opacity-80 transition-opacity" : "cursor-default"}`}
-                        >
-                          <Avatar
-                            name={isSolo ? "Tu" : (acreedor?.username ?? "?")}
-                            src={isSolo ? undefined : getAvatarUrl(acreedor?.avatarUrl)}
-                            size="md"
-                            variant={isSolo ? "default" : isIn ? "positive" : "negative"}
-                            ring={!isSolo}
-                          />
-                        </button>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-medium truncate text-xs">
-                              {c.descripcion}
+                      <button
+                        type="button"
+                        onClick={() => toggleBatch(bk)}
+                        className="grid grid-cols-12 gap-4 items-center w-full px-4 py-3 text-left hover:bg-[#2B3139]/20 transition-colors"
+                      >
+                        <div className="col-span-5 flex min-w-0 items-center gap-3">
+                          <span className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-[#7F00FF]/20 text-[#7F00FF]">
+                            {expanded ? (
+                              <IoChevronDownOutline className="size-4" />
+                            ) : (
+                              <IoChevronForwardOutline className="size-4" />
+                            )}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate text-xs">{first.descripcion}</p>
+                            <p className="text-[11px] text-[#848E9C] mt-0.5">
+                              Le cobraste a {batchCompras.length} persona{batchCompras.length > 1 ? "s" : ""} · {formatDate(first.createdAt)}
                             </p>
-                            {c.estado === "pendiente" && (
-                              <Badge variant="pending">Pendiente</Badge>
-                            )}
-                            {c.estado === "pago_pendiente" && (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-[#0ECB81]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#0ECB81] border border-[#0ECB81]/20">
-                                <IoTimeOutline className="size-2.5" /> Pago enviado
-                              </span>
-                            )}
-                            {c.estado === "pagado" && (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-[#0ECB81]/15 px-1.5 py-0.5 text-[10px] font-medium text-[#0ECB81] border border-[#0ECB81]/30">
-                                <IoCheckmarkDoneOutline className="size-2.5" /> Pagado
-                              </span>
-                            )}
                           </div>
-                          <p className="text-[11px] text-[#848E9C] mt-0.5">
-                            {formatDate(c.createdAt)}
+                        </div>
+                        <div className="col-span-2 hidden sm:block">
+                          {tipoDesc && <Badge variant="default">{tipoDesc}</Badge>}
+                        </div>
+                        <div className="col-span-3 hidden md:block">
+                          <p className="text-xs text-[#848E9C]">
+                            {batchCompras.map((c) => (typeof c.deudorId === "object" ? c.deudorId.username : "?")).join(", ")}
                           </p>
                         </div>
-                      </div>
-
-                      {/* Type column */}
-                      <div className="col-span-2 hidden sm:block">
-                        {tipoDesc && <Badge variant="default">{tipoDesc}</Badge>}
-                      </div>
-
-                      {/* User column */}
-                      <div className="col-span-3 hidden md:block">
-                        <p className="text-xs text-[#848E9C]">
-                          {isSolo
-                            ? "Gasto personal"
-                            : isIn
-                              ? `Le cobraste a ${deudor?.username || "?"}`
-                              : `${acreedor?.username || "?"} te cobró`}
-                        </p>
-                      </div>
-
-                      {/* Amount column */}
-                      <div className="col-span-2 flex items-center justify-end gap-2">
-                        <span
-                          className={`font-mono text-sm font-semibold tabular-nums ${
-                            isSolo ? "text-[#848E9C]" : c.estado === "pagado" ? "text-[#848E9C] line-through" : isIn ? "text-[#0ECB81]" : "text-[#F6465D]"
-                          }`}
-                        >
-                          {formatMoney(isIn || isSolo ? c.montoAcreedor : c.montoDeudor)}
-                        </span>
-                        {/* Acreedor: puede editar mientras no esté pagado ni en proceso de pago */}
-                        {isIn && c.estado !== "pagado" && c.estado !== "pago_pendiente" && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(c)}
-                            title="Editar gasto"
-                            className="shrink-0 rounded p-1 text-[#848E9C] hover:text-white transition-colors"
-                          >
-                            <IoPencilOutline className="size-3.5" />
-                          </button>
-                        )}
-                        {/* Deudor: aceptado → abre modal con CBU para pagar */}
-                        {!isSolo && !isIn && isAceptado(c) && (
-                          <Button
-                            variant="pay"
-                            size="sm"
-                            onClick={() => handlePay(getAcreedorId(c), [c._id])}
-                            className="shrink-0"
-                          >
-                            Pagar
-                          </Button>
-                        )}
-                        {/* Deudor: pago_pendiente → esperando confirmación del cobrador */}
-                        {!isSolo && !isIn && c.estado === "pago_pendiente" && (
-                          <span className="shrink-0 text-[10px] text-[#848E9C]">En espera</span>
-                        )}
-                      </div>
+                        <div className="col-span-2 flex items-center justify-end">
+                          <span className="font-mono text-sm font-semibold tabular-nums text-[#0ECB81]">
+                            {formatMoney(totalBatch)}
+                          </span>
+                        </div>
+                      </button>
+                      {expanded && (
+                        <ul className="bg-[#0B0E11]/30">
+                          {batchCompras.map((c) => {
+                            const isIn = isAcreedor(c);
+                            const deudor = typeof c.deudorId === "object" ? c.deudorId : null;
+                            return (
+                              <li
+                                key={c._id}
+                                className="grid grid-cols-12 gap-4 items-center border-t border-[#2B3139]/30 px-4 py-2.5 pl-14"
+                              >
+                                <div className="col-span-5 flex min-w-0 items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); if (deudor?._id && deudor._id !== user?._id) setLocation(`/user/${deudor._id}`); }}
+                                    className="shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                                  >
+                                    <Avatar
+                                      name={deudor?.username ?? "?"}
+                                      src={getAvatarUrl(deudor?.avatarUrl)}
+                                      size="sm"
+                                      variant="positive"
+                                      ring
+                                    />
+                                  </button>
+                                  <div className="min-w-0">
+                                    <p className="text-xs text-[#848E9C]">{deudor?.username ?? "?"}</p>
+                                    {c.estado === "pendiente" && <Badge variant="pending">Pendiente</Badge>}
+                                    {c.estado === "pago_pendiente" && (
+                                      <span className="inline-flex items-center gap-0.5 rounded-full bg-[#0ECB81]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#0ECB81]">Pago enviado</span>
+                                    )}
+                                    {c.estado === "pagado" && (
+                                      <span className="inline-flex items-center gap-0.5 rounded-full bg-[#0ECB81]/15 px-1.5 py-0.5 text-[10px] font-medium text-[#0ECB81]">Pagado</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="col-span-2 hidden sm:block" />
+                                <div className="col-span-3 hidden md:block" />
+                                <div className="col-span-2 flex items-center justify-end gap-2">
+                                  <span className="font-mono text-sm font-semibold tabular-nums text-[#0ECB81]">
+                                    {formatMoney(c.montoAcreedor ?? c.montoDeudor)}
+                                  </span>
+                                  {c.estado !== "pagado" && c.estado !== "pago_pendiente" && isIn && (
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEdit(c); }} title="Editar" className="rounded p-1 text-[#848E9C] hover:text-white">
+                                      <IoPencilOutline className="size-3.5" />
+                                    </button>
+                                  )}
+                                  {!isAcreedor(c) && isAceptado(c) && (
+                                    <Button variant="pay" size="sm" onClick={(e) => { e.stopPropagation(); handlePay(getAcreedorId(c), [c._id]); }} className="shrink-0">
+                                      Pagar
+                                    </Button>
+                                  )}
+                                  {!isAcreedor(c) && c.estado === "pago_pendiente" && (
+                                    <span className="text-[10px] text-[#848E9C]">En espera</span>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </li>
                   );
                 })}

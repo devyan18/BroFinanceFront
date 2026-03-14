@@ -18,6 +18,8 @@ export interface User {
   cbu?: string;
   showCbu?: boolean;
   showEmail?: boolean;
+  notifyNewChargesEmail?: boolean;
+  notifyNewChargesPush?: boolean;
   needsPasswordSetup?: boolean;
   createdAt: string;
   updatedAt: string;

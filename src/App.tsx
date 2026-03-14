@@ -1,10 +1,12 @@
 import { Router, Route, Switch, Redirect } from "wouter";
 import { AuthProvider } from "./providers/AuthProvider";
+import { AppSettingsProvider } from "./providers/AppSettingsProvider";
 import { SignInPage, SignUpPage, DashboardPage, ProfilePage, ChartsPage, UserProfilePage, FriendsPage, CompleteProfilePage, ForgotPasswordPage, ResetPasswordPage } from "./pages";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
   return (
+    <AppSettingsProvider>
     <AuthProvider>
       <Router>
         <Switch>
@@ -57,5 +59,6 @@ export default function App() {
         </Switch>
       </Router>
     </AuthProvider>
+    </AppSettingsProvider>
   );
 }

@@ -103,6 +103,8 @@ export const authApi = {
     avatarUrl?: string;
     showCbu?: boolean;
     showEmail?: boolean;
+    notifyNewChargesEmail?: boolean;
+    notifyNewChargesPush?: boolean;
   }): Promise<ApiResponse<{ user: User }>> => {
     return apiClient.patch<{ user: User }>("/auth/profile", data);
   },
@@ -202,6 +204,11 @@ export const comprasApi = {
     roommateId: string
   ): Promise<ApiResponse<BalanceData>> => {
     return apiClient.get<BalanceData>(`/compras/balance/${roommateId}`);
+  },
+
+  /** All balances with roommates (for background refresh). */
+  getBalances: async (): Promise<ApiResponse<BalanceData[]>> => {
+    return apiClient.get<BalanceData[]>(`/compras/balances`);
   },
 
   create: async (

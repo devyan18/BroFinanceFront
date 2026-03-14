@@ -1,4 +1,5 @@
 import { useAuth } from "../providers/AuthProvider";
+import { useAppSettings } from "../providers/AppSettingsProvider";
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef } from "react";
 import api from "../services/api.service";
@@ -9,6 +10,7 @@ import { Alert, Avatar, Button } from "../components/ui";
 
 export default function ProfilePage() {
   const { user, logout, updateUser } = useAuth();
+  const { appSettings, setTheme, setLanguage } = useAppSettings();
   const [, setLocation] = useLocation();
   const [isEditing, setIsEditing] = useState(false);
 
@@ -17,6 +19,8 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || "");
   const [showCbu, setShowCbu] = useState(user?.showCbu !== false);
   const [showEmail, setShowEmail] = useState(user?.showEmail === true);
+  const [notifyNewChargesEmail, setNotifyNewChargesEmail] = useState(user?.notifyNewChargesEmail !== false);
+  const [notifyNewChargesPush, setNotifyNewChargesPush] = useState(user?.notifyNewChargesPush !== false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -31,6 +35,8 @@ export default function ProfilePage() {
     setAvatarUrl(user?.avatarUrl || "");
     setShowCbu(user?.showCbu !== false);
     setShowEmail(user?.showEmail === true);
+    setNotifyNewChargesEmail(user?.notifyNewChargesEmail !== false);
+    setNotifyNewChargesPush(user?.notifyNewChargesPush !== false);
   }, [user]);
 
   const inputClass =
@@ -48,6 +54,8 @@ export default function ProfilePage() {
         avatarUrl: av,
         showCbu,
         showEmail,
+        notifyNewChargesEmail,
+        notifyNewChargesPush,
       });
       if (res.success && res.data?.user) {
         updateUser(res.data.user);
@@ -270,6 +278,27 @@ export default function ProfilePage() {
                     <span className="text-sm">Mostrar email cuando visiten mi perfil</span>
                   </label>
                 </div>
+                <div className="rounded-lg border border-[#2B3139]/60 bg-[#0B0E11]/30 p-4 space-y-3 mt-4">
+                  <p className="text-xs font-semibold text-[#848E9C]">Notificaciones de cobros</p>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notifyNewChargesEmail}
+                      onChange={(e) => setNotifyNewChargesEmail(e.target.checked)}
+                      className="rounded border-[#2B3139] bg-[#0B0E11]"
+                    />
+                    <span className="text-sm">Recibir email cuando alguien me cobre</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notifyNewChargesPush}
+                      onChange={(e) => setNotifyNewChargesPush(e.target.checked)}
+                      className="rounded border-[#2B3139] bg-[#0B0E11]"
+                    />
+                    <span className="text-sm">Notificaciones push en la app cuando me cobren</span>
+                  </label>
+                </div>
                 <div className="flex gap-3">
                   <Button type="submit" variant="primary" size="lg" disabled={saving} isLoading={saving}>
                     {saving ? "Guardando..." : "Guardar"}
@@ -285,6 +314,8 @@ export default function ProfilePage() {
                       setAvatarUrl(user?.avatarUrl || "");
                       setShowCbu(user?.showCbu !== false);
                       setShowEmail(user?.showEmail === true);
+                      setNotifyNewChargesEmail(user?.notifyNewChargesEmail !== false);
+                      setNotifyNewChargesPush(user?.notifyNewChargesPush !== false);
                     }}
                   >
                     Cancelar
@@ -292,6 +323,58 @@ export default function ProfilePage() {
                 </div>
               </form>
             )}
+          </div>
+        </section>
+
+        {/* Configuración de la app (solo este dispositivo) */}
+        <section className="mb-6 overflow-hidden rounded-xl border border-[#2B3139] bg-[#181A20]">
+          <div className="border-b border-[#2B3139] px-6 py-4">
+            <h2 className="text-lg font-bold">Configuración de la app</h2>
+            <p className="mt-0.5 text-xs text-[#848E9C]">
+              Solo afecta este dispositivo. No se sincroniza con tu cuenta.
+            </p>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C] mb-2">Tema</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTheme("dark")}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    appSettings.theme === "dark"
+                      ? "bg-[#7F00FF] text-white"
+                      : "bg-[#0B0E11] border border-[#2B3139] text-[#848E9C] hover:border-[#7F00FF]/50"
+                  }`}
+                >
+                  Oscuro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme("light")}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    appSettings.theme === "light"
+                      ? "bg-[#7F00FF] text-white"
+                      : "bg-[#0B0E11] border border-[#2B3139] text-[#848E9C] hover:border-[#7F00FF]/50"
+                  }`}
+                >
+                  Claro
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-[#848E9C]">El tema claro se aplicará en una próxima actualización.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C] mb-2">Idioma</label>
+              <select
+                value={appSettings.language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full max-w-xs h-10 rounded-lg border border-[#2B3139] bg-[#0B0E11] px-4 text-sm text-white"
+              >
+                <option value="es">Español</option>
+                <option value="en">English</option>
+              </select>
+              <p className="mt-1 text-xs text-[#848E9C]">Los textos en el idioma elegido se mostrarán en una próxima actualización.</p>
+            </div>
           </div>
         </section>
 
