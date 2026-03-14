@@ -21,7 +21,6 @@ import {
   CHART_COLORS,
   type ChartId,
   type ChartPreferences,
-  type ComparativeSeriesOption,
 } from "../utils/chartPreferences";
 import {
   LineChart,
@@ -229,9 +228,10 @@ export default function ChartsPage() {
   }, [datosLinea]);
 
   const datosComparativo = useMemo(() => {
-    const rows = datosLinea.map((d) => ({
+    type Row = { fechaKey: string; fecha: string; total: number; acumulado: number; [k: string]: string | number };
+    const rows: Row[] = datosLinea.map((d) => ({
       ...d,
-      acumulado: 0 as number,
+      acumulado: 0,
       ...Object.fromEntries(categoryNames.map((n) => [n, 0])),
       ...Object.fromEntries(userLabels.map((n) => [n, 0])),
     }));
@@ -244,8 +244,8 @@ export default function ChartsPage() {
       const acreedor = typeof c.acreedorId === "object" ? c.acreedorId : null;
       const userId = (acreedor && typeof acreedor === "object" && "_id" in acreedor ? acreedor._id : acreedor) as string;
       const userLabel = userId ? userIdToLabel.get(userId) : null;
-      if (categoryNames.includes(tipoDesc)) row[tipoDesc] = (row[tipoDesc] ?? 0) + c.montoTotal;
-      if (userLabel && userLabels.includes(userLabel)) row[userLabel] = (row[userLabel] ?? 0) + c.montoTotal;
+      if (categoryNames.includes(tipoDesc)) row[tipoDesc] = (row[tipoDesc] as number ?? 0) + c.montoTotal;
+      if (userLabel && userLabels.includes(userLabel)) row[userLabel] = (row[userLabel] as number ?? 0) + c.montoTotal;
     });
     let acu = 0;
     rows.forEach((r) => {

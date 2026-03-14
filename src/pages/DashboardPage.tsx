@@ -495,7 +495,8 @@ export default function DashboardPage() {
     keyToCompras.forEach((arr, k) => {
       if (arr.length > 1) batches.set(k, arr);
     });
-    const rows: { type: "single"; compra: Compra } | { type: "batch"; batchKey: string; compras: Compra[] }[] = [];
+    type TableRow = { type: "single"; compra: Compra } | { type: "batch"; batchKey: string; compras: Compra[] };
+    const rows: TableRow[] = [];
     const seenBatch = new Set<string>();
     sortedCompras.forEach((c) => {
       const key = batchKeyFor(c);
