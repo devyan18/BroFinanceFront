@@ -361,7 +361,6 @@ export default function DashboardPage() {
     typeof c.deudorId === "object" ? c.deudorId._id : c.deudorId;
   const isSoloCompra = (c: Compra) => getAcreedorId(c) === getDeudorId(c);
 
-  const comprasCompartidas = comprasAceptadas.filter((c) => !isSoloCompra(c));
   // Totales y "Mis deudas" usan saldo NETO por roommate (diferencia), no suma bruta de compras
   const teDeben = roommates
     .filter((r) => (r.balance ?? 0) > 0)
