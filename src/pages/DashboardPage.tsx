@@ -267,8 +267,6 @@ export default function DashboardPage() {
   const isAceptado = (c: Compra) =>
     c.estado === "aceptado" || c.estado === undefined;
 
-  const comprasAceptadas = comprasFiltradasPorSub.filter(isAceptado);
-
   const comprasPendientes = comprasFiltradasPorSub.filter(
     (c) =>
       c.estado === "pendiente" &&
