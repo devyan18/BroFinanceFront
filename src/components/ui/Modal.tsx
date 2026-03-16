@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { IoClose } from "react-icons/io5";
 
 interface ModalProps {
@@ -17,6 +18,15 @@ export default function Modal({
   closeDisabled = false,
   maxWidth = "md",
 }: ModalProps) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !closeDisabled) onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, closeDisabled, onClose]);
+
   if (!isOpen) return null;
 
   const maxWidthClass = maxWidth === "sm" ? "max-w-sm" : maxWidth === "lg" ? "max-w-lg" : "max-w-md";

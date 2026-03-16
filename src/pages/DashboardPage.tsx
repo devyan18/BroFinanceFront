@@ -8,6 +8,7 @@ import { getSubfilters, isOtros } from "../constants/subfilters";
 import { formatMoney, formatDate } from "../utils/formatters";
 import { getAvatarUrl } from "../utils/avatar";
 import { getBalancesCache, setBalancesCache } from "../utils/balanceCache";
+import { usePayTransferModal } from "../hooks/usePayTransferModal";
 import { AppLayout } from "../components/layout";
 import Navbar from "../components/layout/Navbar";
 import {
@@ -29,23 +30,11 @@ export default function DashboardPage() {
   const [compras, setCompras] = useState<Compra[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [payModalOpen, setPayModalOpen] = useState(false);
-  const [payLoading, setPayLoading] = useState(false);
-  const [payCompraIds, setPayCompraIds] = useState<string[]>([]);
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editCompra, setEditCompra] = useState<Compra | null>(null);
   const [editForm, setEditForm] = useState({ descripcion: "", montoTotal: "", montoDeudor: "", tipo: "" });
   const [editing, setEditing] = useState(false);
-  const [payResult, setPayResult] = useState<{
-    cbu: string;
-    monto: number;
-    descripcion: string;
-    acreedorUsername: string;
-  } | null>(null);
-  const [payError, setPayError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [notifyPaymentLoading, setNotifyPaymentLoading] = useState(false);
   const [tipos, setTipos] = useState<TipoCompra[]>([]);
   const [roommates, setRoommates] = useState<Roommate[]>([]);
   const [creating, setCreating] = useState(false);
@@ -97,6 +86,8 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }, [filterTipo, filterUsuario, sortBy, sortOrder]);
+
+  const payModal = usePayTransferModal(fetchCompras);
 
   const comprasFiltradasPorSub = useMemo(() => {
     let result = compras;
@@ -364,58 +355,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handlePay = async (acreedorId: string, compraIds?: string[]) => {
-    setPayCompraIds(compraIds ?? []);
-    setPayModalOpen(true);
-    setPayLoading(true);
-    setPayError(null);
-    setPayResult(null);
-    setCopied(false);
-    try {
-      const res = await api.payments.getTransferInfo({ acreedorId, compraIds });
-      if (res.success && res.data) {
-        setPayResult(res.data);
-      } else {
-        setPayError(res.error || "Error al obtener datos");
-      }
-    } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Error al obtener datos");
-    } finally {
-      setPayLoading(false);
-    }
-  };
-
-  const copyCbu = () => {
-    if (payResult?.cbu) {
-      navigator.clipboard.writeText(payResult.cbu);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const closePayModal = () => {
-    setPayModalOpen(false);
-    setPayResult(null);
-    setPayError(null);
-    setPayCompraIds([]);
-    setCopied(false);
-  };
-
-  const handleNotifyPayment = async () => {
-    if (payCompraIds.length === 0) return;
-    setNotifyPaymentLoading(true);
-    setError(null);
-    try {
-      await Promise.all(payCompraIds.map((id) => api.compras.requestPayment(id)));
-      closePayModal();
-      await fetchCompras();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al notificar pago");
-    } finally {
-      setNotifyPaymentLoading(false);
-    }
-  };
-
   const getAcreedorId = (c: Compra) =>
     typeof c.acreedorId === "object" ? c.acreedorId._id : c.acreedorId;
   const getDeudorId = (c: Compra) =>
@@ -423,41 +362,24 @@ export default function DashboardPage() {
   const isSoloCompra = (c: Compra) => getAcreedorId(c) === getDeudorId(c);
 
   const comprasCompartidas = comprasAceptadas.filter((c) => !isSoloCompra(c));
-  const teDeben = comprasCompartidas
-    .filter((c) => isAcreedor(c))
-    .reduce((acc, c) => acc + c.montoAcreedor, 0);
-  const debes = comprasCompartidas
-    .filter((c) => !isAcreedor(c))
-    .reduce((acc, c) => acc + c.montoDeudor, 0);
+  // Totales y "Mis deudas" usan saldo NETO por roommate (diferencia), no suma bruta de compras
+  const teDeben = roommates
+    .filter((r) => (r.balance ?? 0) > 0)
+    .reduce((acc, r) => acc + (r.balance ?? 0), 0);
+  const debes = roommates
+    .filter((r) => (r.balance ?? 0) < 0)
+    .reduce((acc, r) => acc + Math.abs(r.balance ?? 0), 0);
   const gastosPersonales = comprasFiltradasPorSub
     .filter(isSoloCompra)
     .reduce((acc, c) => acc + (c.montoTotal || c.montoAcreedor || 0), 0);
 
-  const deudasPorAcreedor = comprasCompartidas
-    .filter((c) => getDeudorId(c) === user?._id)
-    .reduce<
-      Record<
-        string,
-        {
-          acreedor: { _id: string; username: string; avatarUrl?: string };
-          total: number;
-          compras: Compra[];
-        }
-      >
-    >((acc, c) => {
-      const aid = getAcreedorId(c);
-      const acreedor =
-        typeof c.acreedorId === "object"
-          ? c.acreedorId
-          : { _id: aid, username: "?", avatarUrl: undefined };
-      if (!acc[aid]) {
-        acc[aid] = { acreedor, total: 0, compras: [] };
-      }
-      acc[aid].total += c.montoDeudor;
-      acc[aid].compras.push(c);
-      return acc;
-    }, {});
-  const deudasList = Object.values(deudasPorAcreedor);
+  // Solo roommates a los que debes (saldo neto negativo)
+  const deudasList = roommates
+    .filter((r) => (r.balance ?? 0) < 0)
+    .map((r) => ({
+      acreedor: { _id: r.id, username: r.username, avatarUrl: r.avatarUrl },
+      total: Math.round(Math.abs(r.balance ?? 0) * 100) / 100,
+    }));
 
   const sortedCompras = [...comprasFiltradasPorSub].sort((a, b) => {
     const aVal =
@@ -572,7 +494,7 @@ export default function DashboardPage() {
         {deudasList.length > 0 && (
           <PageSection title="Mis deudas" className="mb-6">
             <div className="space-y-3">
-              {deudasList.map(({ acreedor, total, compras }) => (
+              {deudasList.map(({ acreedor, total }) => (
                 <Card key={acreedor._id} hover={false} className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <button
@@ -587,7 +509,7 @@ export default function DashboardPage() {
                       <p className="font-mono text-xs text-[#F6465D]">{formatMoney(total)}</p>
                     </div>
                   </div>
-                  <Button variant="pay" size="md" onClick={() => handlePay(acreedor._id, compras.map((c) => c._id))}>
+                  <Button variant="pay" size="md" onClick={() => payModal.handlePay(acreedor._id)}>
                     Pagar todo
                   </Button>
                 </Card>
@@ -855,7 +777,7 @@ export default function DashboardPage() {
                             </button>
                           )}
                           {!isSolo && !isIn && isAceptado(c) && (
-                            <Button variant="pay" size="sm" onClick={() => handlePay(getAcreedorId(c), [c._id])} className="shrink-0">
+                            <Button variant="pay" size="sm" onClick={() => payModal.handlePay(getAcreedorId(c), [c._id])} className="shrink-0">
                               Pagar
                             </Button>
                           )}
@@ -960,7 +882,7 @@ export default function DashboardPage() {
                                     </button>
                                   )}
                                   {!isAcreedor(c) && isAceptado(c) && (
-                                    <Button variant="pay" size="sm" onClick={(e) => { e.stopPropagation(); handlePay(getAcreedorId(c), [c._id]); }} className="shrink-0">
+                                    <Button variant="pay" size="sm" onClick={(e) => { e.stopPropagation(); payModal.handlePay(getAcreedorId(c), [c._id]); }} className="shrink-0">
                                       Pagar
                                     </Button>
                                   )}
@@ -1324,64 +1246,73 @@ export default function DashboardPage() {
         </form>
       </Modal>
 
-      <Modal isOpen={payModalOpen} onClose={closePayModal} title="Transferir">
+      <Modal isOpen={payModal.open} onClose={payModal.close} title="Transferir">
         <div className="p-5">
-          {payLoading ? (
+          {payModal.loading ? (
             <div className="flex flex-col items-center justify-center py-12">
               <Spinner size="lg" className="mb-3" />
               <p className="text-sm text-[#848E9C]">Cargando...</p>
             </div>
-          ) : payError ? (
-            <Alert variant="error">{payError}</Alert>
-          ) : payResult ? (
+          ) : payModal.error ? (
+            <Alert variant="error">{payModal.error}</Alert>
+          ) : payModal.result ? (
                 <div className="space-y-4">
                   <p className="text-sm text-[#848E9C]">
-                    {payResult.descripcion}
+                    {payModal.result.descripcion}
                   </p>
                   <p className="font-mono text-xl font-bold text-white">
-                    {formatMoney(payResult.monto)}
+                    {formatMoney(payModal.result.monto)}
                   </p>
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C] mb-1">
-                      CBU / CVU de {payResult.acreedorUsername}
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C] mb-2">
+                      CBU / CVU de {payModal.result.acreedorUsername}
                     </label>
-                    <div className="flex gap-2">
-                      <code className="flex-1 rounded-lg border border-[#2B3139]/60 bg-[#0B0E11]/50 px-3 py-2.5 font-mono text-sm text-white break-all">
-                        {payResult.cbu}
-                      </code>
-                      <Button
-                        type="button"
-                        variant="primary"
-                        size="lg"
-                        onClick={copyCbu}
-                        className="shrink-0"
-                      >
-                        {copied ? "¡Copiado!" : "Copiar"}
-                      </Button>
+                    <div className="space-y-2">
+                      {payModal.result.wallets.map((w) => (
+                        <div
+                          key={w.cbu}
+                          className="flex gap-2 items-center rounded-xl border border-[#2B3139]/60 border-l-4 py-2"
+                          style={{ borderLeftColor: w.color }}
+                        >
+                          <div className="flex-1 min-w-0 px-2">
+                            <p className="text-xs font-medium text-[#848E9C]">{w.name}</p>
+                            <code className="font-mono text-sm text-white break-all">{w.cbu}</code>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="md"
+                            onClick={() => payModal.copyCbu(w.cbu)}
+                            className="shrink-0 m-1"
+                          >
+                            {payModal.copiedCbu === w.cbu ? "¡Copiado!" : "Copiar"}
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                   <p className="text-xs text-[#848E9C]">
-                    Transfiere este monto al CBU indicado
+                    Transfiere este monto a cualquiera de los CBU indicados
                   </p>
-                  {payCompraIds.length > 0 && (
-                    <div className="pt-3 border-t border-[#2B3139]/50">
-                      <Button
-                        type="button"
-                        variant="success"
-                        size="md"
-                        className="w-full"
-                        onClick={handleNotifyPayment}
-                        disabled={notifyPaymentLoading}
-                        isLoading={notifyPaymentLoading}
-                        leftIcon={<IoCheckmarkDoneOutline className="size-4" />}
-                      >
-                        {notifyPaymentLoading ? "Enviando..." : "Ya hice la transferencia"}
-                      </Button>
+                  <div className="pt-3 border-t border-[#2B3139]/50">
+                    <Button
+                      type="button"
+                      variant="success"
+                      size="md"
+                      className="w-full"
+                      onClick={payModal.handleNotifyPayment}
+                      disabled={payModal.notifyLoading}
+                      isLoading={payModal.notifyLoading}
+                      leftIcon={<IoCheckmarkDoneOutline className="size-4" />}
+                    >
+                      {payModal.notifyLoading ? "Enviando..." : "Ya hice la transferencia"}
+                    </Button>
+                    {payModal.payCompraIds.length > 0 && (
                       <p className="mt-2 text-xs text-[#848E9C] text-center">
                         El cobrador deberá confirmar que recibió el pago
                       </p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
           ) : null}
         </div>

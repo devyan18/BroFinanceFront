@@ -1,7 +1,8 @@
 import { useAuth } from "../providers/AuthProvider";
 import { useLocation, Link } from "wouter";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { IoPersonAddOutline, IoSearchOutline, IoCheckmarkOutline, IoCloseOutline } from "react-icons/io5";
+import { useDebounce } from "../hooks/useDebounce";
 import api from "../services/api.service";
 import type { Friend, FriendRequest, FriendsRequestsData, SearchUser } from "../services/api.service";
 import { getAvatarUrl } from "../utils/avatar";
@@ -52,7 +53,7 @@ export default function FriendsPage() {
     fetchData();
   }, [fetchData]);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedSearchQuery = useDebounce(searchQuery.trim(), 400);
 
   const runSearch = useCallback(async (q: string) => {
     if (q.length < 2) {
@@ -81,23 +82,16 @@ export default function FriendsPage() {
     }
   }, []);
 
-  // Debounced search on every keystroke
   useEffect(() => {
-    const q = searchQuery.trim();
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (q.length < 2) {
+    if (debouncedSearchQuery.length < 2) {
       setSearchResults([]);
       setHasSearched(false);
       setSearchError(null);
       setSearching(false);
       return;
     }
-    setSearching(true);
-    debounceRef.current = setTimeout(() => runSearch(q), 400);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchQuery, runSearch]);
+    runSearch(debouncedSearchQuery);
+  }, [debouncedSearchQuery, runSearch]);
 
   const handleSendRequest = async (userId: string) => {
     try {

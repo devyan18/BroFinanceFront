@@ -9,6 +9,7 @@ import { apiClient } from "../utils/api";
 import type {
   ApiResponse,
   User,
+  UserWallet,
   AuthResponse,
   LoginCredentials,
   RegisterCredentials,
@@ -103,6 +104,7 @@ export const authApi = {
     avatarUrl?: string;
     showCbu?: boolean;
     showEmail?: boolean;
+    favoriteWalletId?: string | null;
     notifyNewChargesEmail?: boolean;
     notifyNewChargesPush?: boolean;
   }): Promise<ApiResponse<{ user: User }>> => {
@@ -321,15 +323,22 @@ export const friendsApi = {
 };
 
 /**
- * Payments API - Transfer info (CBU + monto) for debt settlement
+ * Payments API - Transfer info (wallets + monto) for debt settlement
  */
 export interface TransferInfoInput {
   acreedorId: string;
   compraIds?: string[];
 }
 
-export interface TransferInfoResponse {
+export interface TransferInfoWallet {
+  name: string;
+  color: string;
   cbu: string;
+  darkFont?: boolean;
+}
+
+export interface TransferInfoResponse {
+  wallets: TransferInfoWallet[];
   monto: number;
   descripcion: string;
   acreedorUsername: string;
@@ -343,6 +352,37 @@ export const paymentsApi = {
       "/payments/transfer-info",
       data
     );
+  },
+};
+
+/**
+ * Wallets API - User wallets (one CBU per provider)
+ */
+export const walletsApi = {
+  list: async (): Promise<ApiResponse<{ wallets: UserWallet[] }>> => {
+    return apiClient.get<{ wallets: UserWallet[] }>("/wallets");
+  },
+  getProviders: async (): Promise<
+    ApiResponse<{ providers: { id: string; name: string; color: string }[] }>
+  > => {
+    return apiClient.get<{ providers: { id: string; name: string; color: string }[] }>(
+      "/wallets/providers"
+    );
+  },
+  add: async (
+    providerKey: string,
+    cbu: string
+  ): Promise<ApiResponse<{ wallet: UserWallet }>> => {
+    return apiClient.post<{ wallet: UserWallet }>("/wallets", { providerKey, cbu });
+  },
+  update: async (
+    walletId: string,
+    cbu: string
+  ): Promise<ApiResponse<{ wallet: UserWallet }>> => {
+    return apiClient.patch<{ wallet: UserWallet }>(`/wallets/${walletId}`, { cbu });
+  },
+  remove: async (walletId: string): Promise<ApiResponse<null>> => {
+    return apiClient.delete<null>(`/wallets/${walletId}`);
   },
 };
 
@@ -370,5 +410,6 @@ export default {
   compras: comprasApi,
   friends: friendsApi,
   payments: paymentsApi,
+  wallets: walletsApi,
   health: healthApi,
 };

@@ -23,6 +23,7 @@ export default function UserProfilePage() {
     avatarUrl?: string;
     cbu?: string;
     email?: string;
+    wallets?: { name: string; color: string; cbu: string; darkFont?: boolean }[];
   } | null>(null);
   const [friendStatus, setFriendStatus] = useState<{ status: FriendStatus; requestId?: string } | null>(null);
   const [compras, setCompras] = useState<Compra[]>([]);
@@ -32,13 +33,13 @@ export default function UserProfilePage() {
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
   const [payResult, setPayResult] = useState<{
-    cbu: string;
+    wallets: { name: string; color: string; cbu: string; darkFont?: boolean }[];
     monto: number;
     descripcion: string;
     acreedorUsername: string;
   } | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedCbu, setCopiedCbu] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!userId) return;
@@ -59,6 +60,7 @@ export default function UserProfilePage() {
             avatarUrl: u.avatarUrl,
             cbu: u.cbu,
             email: u.email,
+            wallets: (u as { wallets?: { name: string; color: string; cbu: string }[] }).wallets,
           });
         } else {
           setError("Usuario no encontrado");
@@ -102,7 +104,7 @@ export default function UserProfilePage() {
     setPayLoading(true);
     setPayError(null);
     setPayResult(null);
-    setCopied(false);
+    setCopiedCbu(null);
     try {
       const res = await api.payments.getTransferInfo({ acreedorId, compraIds });
       if (res.success && res.data) {
@@ -117,19 +119,17 @@ export default function UserProfilePage() {
     }
   };
 
-  const copyCbu = () => {
-    if (payResult?.cbu) {
-      navigator.clipboard.writeText(payResult.cbu);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  const copyWalletCbu = (cbu: string) => {
+    navigator.clipboard.writeText(cbu);
+    setCopiedCbu(cbu);
+    setTimeout(() => setCopiedCbu(null), 2000);
   };
 
   const closePayModal = () => {
     setPayModalOpen(false);
     setPayResult(null);
     setPayError(null);
-    setCopied(false);
+    setCopiedCbu(null);
   };
 
   return (
@@ -245,14 +245,32 @@ export default function UserProfilePage() {
                     </div>
                   )}
                 </div>
-                {profileUser.cbu && (
+                {(profileUser.wallets?.length ?? 0) > 0 ? (
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C]">
+                      Billeteras (CBU / CVU)
+                    </label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {profileUser.wallets!.map((w) => (
+                        <span
+                          key={w.cbu}
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${w.darkFont ? "text-gray-900" : "text-white"}`}
+                          style={{ backgroundColor: w.color }}
+                        >
+                          {w.name}
+                          <span className="font-mono opacity-90">{w.cbu.slice(-4)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : profileUser.cbu ? (
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C]">
                       CBU / CVU
                     </label>
                     <p className="mt-1 font-mono text-sm text-white break-all">{profileUser.cbu}</p>
                   </div>
-                )}
+                ) : null}
               </div>
             </section>
 
@@ -326,22 +344,31 @@ export default function UserProfilePage() {
                 {formatMoney(payResult.monto)}
               </p>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C] mb-1">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C] mb-2">
                   CBU / CVU de {payResult.acreedorUsername}
                 </label>
-                <div className="flex gap-2">
-                  <code className="flex-1 rounded-lg border border-[#2B3139]/60 bg-[#0B0E11]/50 px-3 py-2.5 font-mono text-sm text-white break-all">
-                    {payResult.cbu}
-                  </code>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="lg"
-                    onClick={copyCbu}
-                    className="shrink-0"
-                  >
-                    {copied ? "¡Copiado!" : "Copiar"}
-                  </Button>
+                <div className="space-y-2">
+                  {payResult.wallets.map((w) => (
+                    <div
+                      key={w.cbu}
+                      className="flex gap-2 items-center rounded-xl border border-[#2B3139]/60 border-l-4 py-2"
+                      style={{ borderLeftColor: w.color }}
+                    >
+                      <div className="flex-1 min-w-0 px-2">
+                        <p className="text-xs font-medium text-[#848E9C]">{w.name}</p>
+                        <code className="font-mono text-sm text-white break-all">{w.cbu}</code>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="md"
+                        onClick={() => copyWalletCbu(w.cbu)}
+                        className="shrink-0 m-1"
+                      >
+                        {copiedCbu === w.cbu ? "¡Copiado!" : "Copiar"}
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </div>
               <p className="text-xs text-[#848E9C]">

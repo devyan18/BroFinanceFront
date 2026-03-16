@@ -7,6 +7,16 @@ export interface ApiResponse<T> {
   errors?: Array<{ path: string; message: string }>;
 }
 
+// User wallet (one CBU per provider)
+export interface UserWallet {
+  _id: string;
+  providerKey: string;
+  name: string;
+  color: string;
+  cbu: string;
+  darkFont?: boolean;
+}
+
 // User Type
 export interface User {
   _id: string;
@@ -18,6 +28,8 @@ export interface User {
   cbu?: string;
   showCbu?: boolean;
   showEmail?: boolean;
+  wallets?: UserWallet[];
+  favoriteWalletId?: string | null;
   notifyNewChargesEmail?: boolean;
   notifyNewChargesPush?: boolean;
   needsPasswordSetup?: boolean;

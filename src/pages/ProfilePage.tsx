@@ -1,105 +1,72 @@
 import { useAuth } from "../providers/AuthProvider";
 import { useAppSettings } from "../providers/AppSettingsProvider";
 import { useLocation } from "wouter";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import api from "../services/api.service";
 import { getAvatarUrl } from "../utils/avatar";
 import { AppLayout } from "../components/layout";
 import SimpleHeader from "../components/layout/SimpleHeader";
-import { Alert, Avatar, Button } from "../components/ui";
+import { Alert, Avatar, Button, Modal } from "../components/ui";
+import { WALLET_PROVIDERS, getWalletProviderById } from "../constants/walletProviders";
+import { useProfile } from "../hooks/useProfile";
 
 export default function ProfilePage() {
   const { user, logout, updateUser } = useAuth();
   const { appSettings, setTheme, setLanguage } = useAppSettings();
   const [, setLocation] = useLocation();
-  const [isEditing, setIsEditing] = useState(false);
-
-  const [username, setUsername] = useState(user?.username || "");
-  const [cbu, setCbu] = useState(user?.cbu || "");
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || "");
-  const [showCbu, setShowCbu] = useState(user?.showCbu !== false);
-  const [showEmail, setShowEmail] = useState(user?.showEmail === true);
-  const [notifyNewChargesEmail, setNotifyNewChargesEmail] = useState(user?.notifyNewChargesEmail !== false);
-  const [notifyNewChargesPush, setNotifyNewChargesPush] = useState(user?.notifyNewChargesPush !== false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setUsername(user?.username || "");
-    setCbu(user?.cbu || "");
-    setAvatarUrl(user?.avatarUrl || "");
-    setShowCbu(user?.showCbu !== false);
-    setShowEmail(user?.showEmail === true);
-    setNotifyNewChargesEmail(user?.notifyNewChargesEmail !== false);
-    setNotifyNewChargesPush(user?.notifyNewChargesPush !== false);
-  }, [user]);
+  const {
+    profileForm: {
+      username,
+      setUsername,
+      avatarUrl,
+      setAvatarUrl,
+      showCbu,
+      setShowCbu,
+      showEmail,
+      setShowEmail,
+      notifyNewChargesEmail,
+      setNotifyNewChargesEmail,
+      notifyNewChargesPush,
+      setNotifyNewChargesPush,
+    },
+    walletsState: {
+      wallets,
+      favoriteWalletId,
+      walletModal,
+      setWalletModal,
+      walletCbuInput,
+      setWalletCbuInput,
+      walletSaving,
+      deleteWalletModal,
+      setDeleteWalletModal,
+      deleteWalletLoading,
+    },
+    passwordForm: {
+      currentPassword,
+      setCurrentPassword,
+      newPassword,
+      setNewPassword,
+      confirmPassword,
+      setConfirmPassword,
+    },
+    message,
+    setMessage,
+    saving,
+    isEditing,
+    setIsEditing,
+    resetFormFromUser,
+    handleUpdateProfile,
+    handleWalletModalSave,
+    handleChangePassword,
+    handleDeleteWallet,
+    setFavorite,
+  } = useProfile({ user, updateUser });
 
   const inputClass =
     "w-full h-10 rounded-lg border border-[#2B3139] bg-[#0B0E11] px-4 text-white placeholder-[#848E9C] transition-colors focus:border-[#7F00FF] focus:outline-none focus:ring-2 focus:ring-[#7F00FF]/20";
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage(null);
-    try {
-      setSaving(true);
-      const av = avatarUrl.trim() || undefined;
-      const res = await api.auth.updateProfile({
-        username,
-        cbu: cbu.trim() || undefined,
-        avatarUrl: av,
-        showCbu,
-        showEmail,
-        notifyNewChargesEmail,
-        notifyNewChargesPush,
-      });
-      if (res.success && res.data?.user) {
-        updateUser(res.data.user);
-        setMessage({ type: "success", text: "Perfil actualizado correctamente" });
-        setIsEditing(false);
-      } else {
-        setMessage({ type: "error", text: res.error || "Error al actualizar el perfil" });
-      }
-    } catch (e) {
-      const err = e as Error & { errors?: Array<{ path: string; message: string }> };
-      const text =
-        err.errors?.length && err.errors[0]?.message
-          ? err.errors.map((x) => x.message).join(". ")
-          : err.message || "Error al actualizar el perfil";
-      setMessage({ type: "error", text });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage(null);
-    if (newPassword !== confirmPassword) {
-      setMessage({ type: "error", text: "Las contraseñas no coinciden" });
-      return;
-    }
-    if (newPassword.length < 6) {
-      setMessage({ type: "error", text: "La contraseña debe tener al menos 6 caracteres" });
-      return;
-    }
-    try {
-      setSaving(true);
-      await api.auth.changePassword(currentPassword, newPassword);
-      setMessage({ type: "success", text: "Contraseña actualizada correctamente" });
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Error al cambiar la contraseña" });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleLogout = async () => {
     await logout();
@@ -176,9 +143,29 @@ export default function ProfilePage() {
                   <p className="mt-1 text-sm text-white">{user?.email}</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C]">CBU / CVU</label>
-                  <p className="mt-1 text-sm text-white font-mono">{user?.cbu ? user.cbu : "No configurado"}</p>
-                  <p className="mt-1 text-xs text-[#848E9C]">Para recibir transferencias de deudas</p>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C]">Billeteras (CBU/CVU)</label>
+                  <p className="mt-1 text-xs text-[#848E9C]">Para recibir transferencias de deudas. Podés agregar una por cada proveedor.</p>
+                  {wallets.length === 0 ? (
+                    <p className="mt-2 text-sm text-[#848E9C]">No configurado</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {wallets.map((w) => (
+                        <span
+                          key={w._id}
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${w.darkFont ? "text-gray-900" : "text-white"}`}
+                          style={{ backgroundColor: w.color }}
+                        >
+                          {w.name}
+                          {w._id === favoriteWalletId && (
+                            <span className={`rounded px-1 text-xs ${w.darkFont ? "bg-black/20" : "bg-white/20"}`} title="Favorita para cobros">
+                              ★
+                            </span>
+                          )}
+                          <span className="font-mono opacity-90">{w.cbu.slice(-4)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-[#848E9C]">Proveedor</label>
@@ -241,21 +228,83 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <div>
-                  <label htmlFor="cbu" className="mb-2 block text-sm font-semibold text-[#EAECEF]">
-                    CBU / CVU
+                  <label className="mb-2 block text-sm font-semibold text-[#EAECEF]">
+                    Billeteras (CBU/CVU)
                   </label>
-                  <input
-                    id="cbu"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={cbu}
-                    onChange={(e) => setCbu(e.target.value.replace(/\D/g, ""))}
-                    className={inputClass}
-                    placeholder="22 dígitos (Argentina) o 20 (Chile)"
-                    maxLength={26}
-                  />
-                  <p className="mt-1 text-xs text-[#848E9C]">Donde recibirás las transferencias de deudas</p>
+                  <p className="mb-3 text-xs text-[#848E9C]">Agregá una por cada proveedor. Solo podés tener una por tipo. Elegí una como favorita para recibir cobros.</p>
+                  {wallets.length > 0 && !favoriteWalletId && (
+                    <Alert variant="error" className="mb-3">
+                      Elegí una billetera favorita para que otros puedan cobrarte.
+                    </Alert>
+                  )}
+                  {wallets.length > 0 && (
+                    <div className="mb-4 space-y-2">
+                      {wallets.map((w) => (
+                        <div
+                          key={w._id}
+                          className="flex flex-wrap items-center gap-3 rounded-xl border border-[#2B3139]/60 p-3"
+                          style={{ borderLeftWidth: 4, borderLeftColor: w.color }}
+                        >
+                          <span className={`text-sm font-medium ${w.darkFont ? "text-gray-900" : "text-white"}`} style={{ color: w.color }}>{w.name}</span>
+                          {w._id === favoriteWalletId && (
+                            <span className="rounded bg-[#7F00FF]/20 px-2 py-0.5 text-xs font-semibold text-[#7F00FF]">
+                              Favorita
+                            </span>
+                          )}
+                          <code className="flex-1 min-w-0 font-mono text-xs text-[#848E9C]">{w.cbu}</code>
+                          {w._id !== favoriteWalletId && (
+                            <Button
+                              type="button"
+                              variant="primary"
+                              size="sm"
+                            onClick={() => setFavorite(w._id)}
+                            >
+                              Usar como favorita
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setWalletModal({ type: "edit", wallet: w });
+                              setWalletCbuInput(w.cbu);
+                            }}
+                          >
+                            Editar
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setDeleteWalletModal(w)}
+                          >
+                            Eliminar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mb-2 text-xs font-semibold text-[#848E9C]">Agregar billetera</p>
+                  <div className="flex flex-wrap gap-2">
+                    {WALLET_PROVIDERS.filter((p) => !wallets.some((w) => w.providerKey === p.id)).map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setWalletModal({ type: "add", providerKey: p.id });
+                          setWalletCbuInput("");
+                        }}
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90 ${p.darkFont ? "text-gray-900" : "text-white"}`}
+                        style={{ backgroundColor: p.color }}
+                      >
+                        + {p.name}
+                      </button>
+                    ))}
+                    {WALLET_PROVIDERS.every((p) => wallets.some((w) => w.providerKey === p.id)) && (
+                      <span className="text-xs text-[#848E9C] self-center">Ya tenés todas las billeteras agregadas</span>
+                    )}
+                  </div>
                 </div>
                 <div className="rounded-lg border border-[#2B3139]/60 bg-[#0B0E11]/30 p-4 space-y-3">
                   <p className="text-xs font-semibold text-[#848E9C]">Visibilidad para otros usuarios</p>
@@ -266,7 +315,7 @@ export default function ProfilePage() {
                       onChange={(e) => setShowCbu(e.target.checked)}
                       className="rounded border-[#2B3139] bg-[#0B0E11]"
                     />
-                    <span className="text-sm">Mostrar CBU cuando visiten mi perfil</span>
+                    <span className="text-sm">Mostrar billeteras cuando visiten mi perfil</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
@@ -309,13 +358,7 @@ export default function ProfilePage() {
                     size="lg"
                     onClick={() => {
                       setIsEditing(false);
-                      setUsername(user?.username || "");
-                      setCbu(user?.cbu || "");
-                      setAvatarUrl(user?.avatarUrl || "");
-                      setShowCbu(user?.showCbu !== false);
-                      setShowEmail(user?.showEmail === true);
-                      setNotifyNewChargesEmail(user?.notifyNewChargesEmail !== false);
-                      setNotifyNewChargesPush(user?.notifyNewChargesPush !== false);
+                      resetFormFromUser();
                     }}
                   >
                     Cancelar
@@ -325,6 +368,94 @@ export default function ProfilePage() {
             )}
           </div>
         </section>
+
+        <Modal
+          isOpen={deleteWalletModal !== null}
+          onClose={() => !deleteWalletLoading && setDeleteWalletModal(null)}
+          title="Eliminar billetera"
+          closeDisabled={deleteWalletLoading}
+        >
+          <div className="p-5 space-y-4">
+            {deleteWalletModal && (
+              <>
+                <p className="text-sm text-[#848E9C]">
+                  ¿Eliminar la billetera <strong style={{ color: deleteWalletModal.color }}>{deleteWalletModal.name}</strong>? Esta acción no se puede deshacer.
+                </p>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setDeleteWalletModal(null)}
+                    disabled={deleteWalletLoading}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => deleteWalletModal && handleDeleteWallet(deleteWalletModal)}
+                    disabled={deleteWalletLoading}
+                    isLoading={deleteWalletLoading}
+                  >
+                    Eliminar
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={walletModal !== null}
+          onClose={() => {
+            setWalletModal(null);
+            setMessage(null);
+          }}
+          title={walletModal?.type === "add"
+            ? `Agregar ${getWalletProviderById(walletModal.providerKey)?.name ?? walletModal.providerKey}`
+            : "Editar CBU"}
+          closeDisabled={walletSaving}
+        >
+          <div className="p-5 space-y-4">
+            {walletModal?.type === "edit" && (
+              <p className="text-sm text-[#848E9C]">
+                {walletModal.wallet.name}
+              </p>
+            )}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#EAECEF]">CBU / CVU</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={walletCbuInput}
+                onChange={(e) => setWalletCbuInput(e.target.value.replace(/\D/g, ""))}
+                className="w-full h-10 rounded-lg border border-[#2B3139] bg-[#0B0E11] px-4 text-white placeholder-[#848E9C] focus:border-[#7F00FF] focus:outline-none focus:ring-2 focus:ring-[#7F00FF]/20"
+                placeholder="18 a 26 dígitos"
+                maxLength={26}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setWalletModal(null)}
+                disabled={walletSaving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={handleWalletModalSave}
+                disabled={walletSaving || walletCbuInput.replace(/\D/g, "").length < 18}
+                isLoading={walletSaving}
+              >
+                Guardar
+              </Button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Configuración de la app (solo este dispositivo) */}
         <section className="mb-6 overflow-hidden rounded-xl border border-[#2B3139] bg-[#181A20]">
